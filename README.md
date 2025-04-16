@@ -30,7 +30,7 @@
 ## 🛠️ Installation
 
 ```bash
-git clone https://github.com/yourusername/grocalert.git
+git clone https://github.com/phindulo12/grocalert.git
 cd grocalert
 python -m venv venv
 source venv/bin/activate  # or venv\Scripts\activate on Windows
