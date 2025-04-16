@@ -1,0 +1,14 @@
+# Use Unix-style (LF) line endings for these files
+*.sh     text eol=lf
+*.py     text eol=lf
+*.html   text eol=lf
+*.css    text eol=lf
+*.js     text eol=lf
+*.json   text eol=lf
+*.yml    text eol=lf
+
+# Windows-specific IDE/project files
+.idea/*  text eol=crlf
+
+# Normalize everything else automatically
+* text=auto

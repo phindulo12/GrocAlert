@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Grocery Tracker</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet" />
+  <style>
+    #scanner-container {
+      position: relative;
+      width: 100%;
+      max-width: 500px;
+      margin-top: 20px;
+      display: none;
+    }
+    video {
+      width: 100%;
+      border: 2px solid #333;
+      border-radius: 8px;
+    }
+    .ml-auto {
+      margin-left: auto !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container mt-4">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+      <a class="navbar-brand" href="/">Grocery Tracker</a>
+      <div class="ml-auto d-flex align-items-center">
+        <a href="{{ url_for('profile') }}" class="btn btn-outline-secondary me-2">
+          {% if current_user.image %}
+          <img src="{{ url_for('uploaded_file', filename=current_user.image) }}" alt="Profile Picture" class="rounded-circle" width="30" height="30">
+          {% else %}
+          <i class="bi bi-person-circle" style="font-size: 1.5rem;"></i>
+          {% endif %}
+        </a>
+        <a class="btn btn-outline-danger" href="{{ url_for('logout') }}">Logout</a>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <h1 class="mt-4">Your Groceries</h1>
+
+    <div class="alert alert-info mt-4">
+      <strong>Note:</strong> The groceries will last based on the estimate for your gender and age.
+    </div>
+
+    <button id="alert-btn" class="btn btn-warning mb-3">Show Expiring Items</button>
+
+    <h3>Grocery List</h3>
+    <ul id="grocery-list" class="list-group mb-4"></ul>
+
+    <h3>Add New Item</h3>
+    <form id="add-item-form" class="mt-3">
+      <div class="mb-3">
+        <label for="item" class="form-label">Item Name</label>
+        <input type="text" class="form-control" id="item" required />
+      </div>
+      <div class="mb-3">
+        <label for="qty" class="form-label">Quantity</label>
+        <input type="number" class="form-control" id="qty" required />
+      </div>
+      <div class="mb-3">
+        <label for="category" class="form-label">Category</label>
+        <select id="category" class="form-control" required>
+          <option value="fruit">Fruit</option>
+          <option value="vegetable">Vegetable</option>
+          <option value="opened">Opened</option>
+          <option value="dairy">Dairy</option>
+          <option value="canned">Canned</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Add Item</button>
+    </form>
+
+    <!-- Barcode Scanner -->
+    <div class="mt-4">
+      <h5>Scan Barcode (Auto-fill Item)</h5>
+      <button id="start-scanner" class="btn btn-secondary">Start Scanner</button>
+      <button id="stop-scanner" class="btn btn-danger" style="display:none;">Stop Scanner</button>
+      <div id="scanner-container">
+        <video id="barcode-video" autoplay></video>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap Modal for Alerts -->
+  <div class="modal fade" id="alertsModal" tabindex="-1" aria-labelledby="alertsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="alertsModalLabel">Expiring Items</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="alerts-modal-body">
+          <!-- Alert items will be inserted here -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
+  <script>
+    // Load grocery list with delete button
+    fetch('/list')
+    .then(res => res.json())
+    .then(data => {
+    const list = document.getElementById('grocery-list');
+    for (const item in data) {
+      const grocery = data[item];
+      const li = document.createElement('li');
+      li.className = 'list-group-item d-flex justify-content-between align-items-center';
+
+      const span = document.createElement('span');
+      span.textContent = `${item} - ${grocery.qty} ${grocery.size}`;
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn btn-sm btn-outline-danger';
+      deleteBtn.innerHTML = '<i class="bi bi-trash"></i>';
+      deleteBtn.onclick = () => {
+        if (confirm(`Delete ${item}?`)) {
+          fetch(`/delete/${encodeURIComponent(item)}`, { method: 'DELETE' })
+            .then(() => location.reload());
+        }
+      };
+
+      li.appendChild(span);
+      li.appendChild(deleteBtn);
+      list.appendChild(li);
+      }
+      });
+
+
+    // Add item handler
+    document.getElementById('add-item-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const item = document.getElementById('item').value;
+      const qty = document.getElementById('qty').value;
+      const category = document.getElementById('category').value;
+      const size = 'unit';  // You can change this as needed
+
+      fetch('/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item, qty, size, category }),
+      }).then(() => location.reload());
+    });
+
+    // Barcode scanner logic
+    const startScanner = document.getElementById('start-scanner');
+    const stopScanner = document.getElementById('stop-scanner');
+    const scannerContainer = document.getElementById('scanner-container');
+
+    startScanner.addEventListener('click', () => {
+      scannerContainer.style.display = 'block';
+      startScanner.style.display = 'none';
+      stopScanner.style.display = 'inline-block';
+
+      Quagga.init({
+        inputStream: {
+          type: "LiveStream",
+          target: document.querySelector('#barcode-video'),
+          constraints: { facingMode: "environment" }
+        },
+        decoder: {
+          readers: ["ean_reader", "upc_reader"]
+        }
+      }, function (err) {
+        if (err) {
+          console.error("Quagga init error:", err);
+          return;
+        }
+        Quagga.start();
+      });
+
+      Quagga.onDetected(result => {
+        const code = result.codeResult.code;
+        alert("Barcode detected: " + code);
+        document.getElementById('item').value = code;
+        Quagga.stop();
+        scannerContainer.style.display = 'none';
+        startScanner.style.display = 'inline-block';
+        stopScanner.style.display = 'none';
+      });
+    });
+
+    stopScanner.addEventListener('click', () => {
+      Quagga.stop();
+      scannerContainer.style.display = 'none';
+      startScanner.style.display = 'inline-block';
+      stopScanner.style.display = 'none';
+    });
+
+    // Alerts logic
+    document.getElementById('alert-btn').addEventListener('click', () => {
+      fetch('/alerts')
+        .then(res => res.json())
+        .then(data => {
+          const body = document.getElementById('alerts-modal-body');
+          body.innerHTML = '';
+
+          if (data.length === 0 || data.alerts?.length === 0) {
+            body.innerHTML = '<p class="text-muted">No items are about to expire.</p>';
+          } else {
+            const alerts = data.alerts || data; // support both formats
+            const ul = document.createElement('ul');
+            ul.className = 'list-group';
+
+            alerts.forEach(item => {
+              const li = document.createElement('li');
+              li.className = 'list-group-item';
+              li.textContent = `${item.item || item.name} - ${item.qty} left, expires in ${item.days_left} day(s)`;
+              ul.appendChild(li);
+            });
+
+            body.appendChild(ul);
+          }
+
+          new bootstrap.Modal(document.getElementById('alertsModal')).show();
+        })
+        .catch(err => {
+          console.error("Error fetching alerts:", err);
+        });
+    });
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
