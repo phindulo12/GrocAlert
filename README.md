@@ -55,12 +55,7 @@ flask run
 └── requirements.txt
 ```
 
---
-## 📸 Screenshots
 
-> Add screenshots of the profile dashboard, barcode scan feature, and alerts screen.
-
----
 
 ## 🌐 Deployment
 
